@@ -16,16 +16,18 @@
     <java-version>1.8</java-version>
     <argparse4j-version>0.8.1</argparse4j-version>
     <junit-version>4.12</junit-version>
-    <lombok-version>1.16.20</lombok-version>
-    <commons-configuration-version>2.2</commons-configuration-version>
+    <lombok-version>1.18.2</lombok-version>
+    <commons-configuration-version>2.3</commons-configuration-version>
     <commons-beanutils-version>1.9.3</commons-beanutils-version>
-    <log4j-version>2.10.0</log4j-version>
+    <log4j-version>2.11.1</log4j-version>
     <jillion-version>5.3-20181002-110820</jillion-version>
     <argparse4j-version>0.8.1</argparse4j-version>
-    <jacoco-version>0.8.0</jacoco-version>
-    <guava-version>24.1-jre</guava-version>
-    <surefire-version>2.21.0</surefire-version>
+    <jacoco-version>0.8.2</jacoco-version>
+    <guava-version>27.0-jre</guava-version>
+    <surefire-version>2.22.1</surefire-version>
     <git-commit-id-plugin-version>2.2.5</git-commit-id-plugin-version>
+    <maven-compiler-plugin-version>3.8.0</maven-compiler-plugin-version>
+    <opencsv-version>4.3.2</opencsv-version>
     <vigor-major-version>4</vigor-major-version>
     <vigor-minor-version>0</vigor-minor-version>
     <vigor-patch-version>${git.commit.time}-${git.commit.id.abbrev}</vigor-patch-version>
@@ -54,7 +56,7 @@
       <groupId>org.assertj</groupId>
       <artifactId>assertj-core</artifactId>
       <!-- use version 2.1.0 or higher -->
-      <version>2.1.0</version>
+      <version>3.11.1</version>
       <scope>test</scope>
     </dependency>
 
@@ -89,7 +91,7 @@
       <dependency>
           <groupId>com.opencsv</groupId>
           <artifactId>opencsv</artifactId>
-          <version>4.0</version>
+          <version>${opencsv-version}</version>
       </dependency>
 
       <dependency>
@@ -181,7 +183,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.6.1</version>
+          <version>${maven-compiler-plugin-version}</version>
           <configuration>
             <source>${java-version}</source>
             <target>${java-version}</target>
