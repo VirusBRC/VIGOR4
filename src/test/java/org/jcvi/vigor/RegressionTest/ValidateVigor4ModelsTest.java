@@ -165,8 +165,22 @@ public class ValidateVigor4ModelsTest {
         config.putString(ConfigurationParameters.OutputPrefix, outputPrefix);
         String outDir = config.get(ConfigurationParameters.OutputDirectory);
         String tmpDir = config.get(ConfigurationParameters.TemporaryDirectory);
+        // TODO allow user to set this
+        if (tmpDir == null) {
+
+            final Path tempDir;
+            if (outDir != null) {
+                tempDir = Files.createTempDirectory(Paths.get(outDir), "vigor-tmp");
+            } else {
+                tempDir = Files.createTempDirectory("vigor-tmp");
+            }
+            // delete on shutdown
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> VigorUtils.deleteDirectory(tempDir)));
+            config.putString(ConfigurationParameters.TemporaryDirectory, tempDir.toString());
+            tmpDir = tempDir.toString();
+        }
         if (outDir == null) {
-            Path outDirPath;
+            final Path outDirPath;
             if (tmpDir != null) {
                 outDirPath = Files.createTempDirectory(Paths.get(tmpDir), "vigor4_test");
             } else {
@@ -184,13 +198,6 @@ public class ValidateVigor4ModelsTest {
         config.putString(ConfigurationParameters.Verbose, "false");
         if (config.get(ConfigurationParameters.OverwriteOutputFiles) == null) {
             config.putString(ConfigurationParameters.OverwriteOutputFiles, "true");
-        }
-        // TODO allow user to set this
-        if (tmpDir == null) {
-            final Path tempDir = Files.createTempDirectory(Paths.get(outDir), "vigor-tmp");
-            // delete on shutdown
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> VigorUtils.deleteDirectory(tempDir)));
-            config.putString(ConfigurationParameters.TemporaryDirectory, tempDir.toString());
         }
         checkConfig(config);
 
