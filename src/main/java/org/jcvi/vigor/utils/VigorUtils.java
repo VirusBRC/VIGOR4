@@ -80,6 +80,7 @@ public class VigorUtils {
         try {
             // clean up
             if (path != null) {
+                LOGGER.debug("deleting directory {}", path.toAbsolutePath().toString());
                 Files.walk(path)
                      .map(Path::toFile)
                      .sorted(Comparator.reverseOrder())
