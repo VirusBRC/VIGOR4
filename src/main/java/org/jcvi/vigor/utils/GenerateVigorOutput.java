@@ -1,6 +1,7 @@
 package org.jcvi.vigor.utils;
 
 import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -11,6 +12,8 @@ import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -100,7 +103,7 @@ public class GenerateVigorOutput {
 		long seqLength = virusGenome.getSequence().getLength();
 		String refDb = geneModels.get(0).getAlignment().getAlignmentEvidence().getReference_db();
 		StringBuffer content = new StringBuffer("");
-		content.append("gene_id\t%id\t%sim\t%cov\tstart\tstop\tpep_size\tref_size\tref_id\tgene\tgene_product");
+		content.append("gene_id\t%id\t%sim\t%cov\tstart..stop\tpep_size\tref_size\tref_id\tgene\tgene_product");
 		content.append(System.lineSeparator());
 		for (Model model : geneModels) {
 			ViralProtein viralProtein = model.getAlignment().getViralProtein();
@@ -109,22 +112,20 @@ public class GenerateVigorOutput {
 			content.append(model.getGeneID());
 			content.append("\t" + String.format("%.02f", scores.get(Scores.IDENTITY_SCORE)));
 			content.append("\t" + String.format("%.02f", scores.get(Scores.SIMILARITY_SCORE)));
-			content.append("\t" + String.format("%.02f", scores.get(Scores.COVERAGE_SCORE)));
+			content.append("\t" + String.format("%.02f", scores.get(Scores.COVERAGE_SCORE)) + "\t");
 			for (int i = 0; i < model.getExons().size(); i++) {
 				Exon exon = model.getExons().get(i);
-				String start = Long.toString(VigorFunctionalUtils.getDirectionBasedCoordinate(exon.getRange().getBegin(oneBased),
-						seqLength, model.getDirection()));
-				String end = Long.toString(VigorFunctionalUtils.getDirectionBasedCoordinate(exon.getRange().getEnd(oneBased),
-						seqLength, model.getDirection()));
+				String start = Long.toString(exon.getRange().getBegin(oneBased));
+				String end = Long.toString(exon.getRange().getEnd(oneBased));
 				if (i == 0 && model.isPartial5p())
 					start = "<" + start;
 				if (i == model.getExons().size() - 1 && model.isPartial3p())
 					end = ">" + end;
-				if (i != 0) {
-					content.append(System.lineSeparator());
-					// content.append(String.format("%-80s", ""));
+				if (model.getExons().size() > 1 && i != 0) {
+					content.append(", ");
+					// content.append(String.format("%-92s", ""));
 				}
-				content.append("\t" + start + "\t" + end);
+				content.append(start + ".." + end);
 				cdsBases = cdsBases + exon.getRange().getLength();
 			}
 			if (!model.isPartial3p())
@@ -153,9 +154,10 @@ public class GenerateVigorOutput {
 						model.getRange().getBegin(Range.CoordinateSystem.RESIDUE_BASED), seqLength, model.getDirection());
 				long end = VigorFunctionalUtils.getDirectionBasedCoordinate(
 						model.getRange().getEnd(Range.CoordinateSystem.RESIDUE_BASED), seqLength, model.getDirection());
+
 				content.append(String.format(
 						GenerateVigorOutput.formatMaturePeptideRange(model, match, cdRanges, Range.CoordinateSystem.RESIDUE_BASED,
-								"\t", start + model.getExons().get(0).getFrame().getFrame() - 1, end, true)));
+								"..", start + model.getExons().get(0).getFrame().getFrame() - 1, end, true)));
 				content.append("\t" + match.getProteinRange().getLength());
 				content.append("\t" + match.getReference().getSequence().getLength());
 				content.append("\t" + match.getReference().getProteinID());
@@ -387,7 +389,35 @@ public class GenerateVigorOutput {
 
 	public void generateCDSReport(VigorConfiguration config, BufferedWriter bw, List<Model> geneModels) throws IOException {
 
+		String REGEX = ":";
+		String REGEX2 = "[.]";
+		String REPLACE = "_";
+
 		for (Model model : geneModels) {
+
+			ViralProtein refProtein = model.getAlignment().getViralProtein();
+			String GeneSymbol = refProtein.getGeneSymbol();
+
+			String GeneID = model.getGeneID();
+			Pattern p = Pattern.compile(REGEX);
+			Pattern p2 = Pattern.compile(REGEX2);
+
+			Matcher m = p.matcher(GeneID);
+			String GeneID_new = m.replaceAll(REPLACE);
+
+			m = p2.matcher(GeneID_new);
+			GeneID_new = m.replaceAll(REPLACE);
+
+			String FileNameBRC = GeneID_new;
+			String outputDir = config.get(ConfigurationParameters.OutputDirectory);
+
+			String FilePathBRC = outputDir;
+			String FileName = FilePathBRC + "/" + FileNameBRC + ".cds";
+
+			FileWriter writer = new FileWriter(FileName);
+			BufferedWriter bwBRC = new BufferedWriter(writer);
+			writeDefline(bwBRC, model);
+
 			writeDefline(bw, model);
 			NucleotideSequenceBuilder builder = new NucleotideSequenceBuilder();
 			NucleotideSequence virusGenome = model.getAlignment().getVirusGenome().getSequence();
@@ -399,21 +429,76 @@ public class GenerateVigorOutput {
 			for (Range exonRange : translatedRanges) {
 				builder.append(virusGenome.toBuilder(exonRange).build());
 			}
+			writeSequence(bwBRC, builder.build());
 			writeSequence(bw, builder.build());
+
+			bwBRC.close();
 		}
 	}
 
 	public void generatePEPReport(VigorConfiguration config, BufferedWriter bw, List<Model> geneModels) throws IOException {
 
+		String REGEX = ":";
+		String REGEX2 = "[.]";
+		String REPLACE = "_";
+
 		StringBuilder defline;
 		long seqLength = geneModels.get(0).getAlignment().getVirusGenome().getSequence().getLength();
 		for (Model model : geneModels) {
+
+			String GeneID = model.getGeneID();
+
+			Pattern p = Pattern.compile(REGEX);
+			Pattern p2 = Pattern.compile(REGEX2);
+
+			Matcher m = p.matcher(GeneID);
+			String GeneID_new = m.replaceAll(REPLACE);
+
+			m = p2.matcher(GeneID_new);
+			GeneID_new = m.replaceAll(REPLACE);
+
+			String FileNameBRC = GeneID_new;
+
+			String outputDir = config.get(ConfigurationParameters.OutputDirectory);
+
+			String FilePathBRC = outputDir;
+			String FileName = FilePathBRC + "/" + FileNameBRC + ".pep";
+
+			FileWriter writer = new FileWriter(FileName);
+			BufferedWriter bwBRC = new BufferedWriter(writer);
+			writeDefline(bwBRC, model);
+			writeSequence(bwBRC, model.getTranslatedSeq());
+
 			writeDefline(bw, model);
 			writeSequence(bw, model.getTranslatedSeq());
+
+			bwBRC.close();
+
 			IDGenerator idGenerator = IDGenerator.of(model.getGeneID());
+
 			for (MaturePeptideMatch match : model.getMaturePeptides()) {
+
+				String GeneIDi = idGenerator.next();
+				p = Pattern.compile(REGEX);
+				p2 = Pattern.compile(REGEX2);
+
+				Matcher mi = p.matcher(GeneIDi);
+				String GeneIDi_new = mi.replaceAll(REPLACE);
+
+				mi = p2.matcher(GeneIDi_new);
+				GeneIDi_new = mi.replaceAll(REPLACE);
+
+				String FileNameiBRC = GeneIDi_new;
+
+				String FileNamei = FilePathBRC + "/" + FileNameiBRC + ".pep";
+
+				FileWriter writeri = new FileWriter(FileNamei);
+				BufferedWriter bwiBRC = new BufferedWriter(writeri);
+
 				defline = new StringBuilder();
-				defline.append(">" + idGenerator.next());
+				// defline.append(">" + idGenerator.next());
+				defline.append(">" + GeneIDi);
+
 				if (model.isPseudogene()) {
 					defline.append(" pseudogene");
 				}
@@ -445,6 +530,11 @@ public class GenerateVigorOutput {
 				bw.write(defline.toString());
 				bw.newLine();
 				writeSequence(bw, match.getProtein().toBuilder().trim(match.getProteinRange()).build());
+
+				bwiBRC.write(defline.toString());
+				bwiBRC.newLine();
+				writeSequence(bwiBRC, match.getProtein().toBuilder().trim(match.getProteinRange()).build());
+				bwiBRC.close();
 			}
 		}
 	}
