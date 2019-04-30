@@ -36,6 +36,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class GenerateVigorOutput {
 
+	public static final String REGEX = ":";
+	public static final String REGEX2 = "[.]";
+	public static final String REPLACE = "_";
+	public static final String REPLACE_G = "-";
+
 	public enum Outfile {
 		TBL("tbl"), CDS("cds"), GFF3("gff3"), PEP("pep"), ALN("aln"), SUM("sum");
 		final public String extension;
@@ -90,6 +95,15 @@ public class GenerateVigorOutput {
 
 	public void generateSUMReport(VigorConfiguration config, BufferedWriter bw, List<Model> geneModels) throws IOException {
 
+		String FileNameBRCg = getBRCOutputFileName(config, geneModels);
+		String outputDir = config.get(ConfigurationParameters.OutputDirectory);
+
+		String FilePathBRCg = outputDir;
+		String FileNameg = FilePathBRCg + "/" + FileNameBRCg + ".sum";
+
+		FileWriter writerg = new FileWriter(FileNameg);
+		BufferedWriter bwBRCg = new BufferedWriter(writerg);
+
 		if (geneModels.isEmpty()) {
 			LOGGER.warn("no gene models to write to file");
 			return;
@@ -103,7 +117,7 @@ public class GenerateVigorOutput {
 		long seqLength = virusGenome.getSequence().getLength();
 		String refDb = geneModels.get(0).getAlignment().getAlignmentEvidence().getReference_db();
 		StringBuffer content = new StringBuffer("");
-		content.append("gene_id\t%id\t%sim\t%cov\tstart..stop\tpep_size\tref_size\tref_id\tgene\tgene_product");
+		content.append("gene_id\t%identity\t%similarity\t%coverage\tstart..stop\tpep_size\tref_size\tref_id\tgene\tgene_product");
 		content.append(System.lineSeparator());
 		for (Model model : geneModels) {
 			ViralProtein viralProtein = model.getAlignment().getViralProtein();
@@ -168,19 +182,31 @@ public class GenerateVigorOutput {
 			}
 		}
 		bw.write(content.toString());
+		bwBRCg.write(content.toString());
+		bwBRCg.close();
 	}
 
 	public void generateTBLReport(VigorConfiguration config, BufferedWriter bw, List<Model> geneModels) throws IOException {
+
+		String FileNameBRCg = getBRCOutputFileName(config, geneModels);
+		String outputDir = config.get(ConfigurationParameters.OutputDirectory);
+		String FilePathBRCg = outputDir;
+		String FileNameg = FilePathBRCg + "/" + FileNameBRCg + ".tbl";
+
+		FileWriter writerg = new FileWriter(FileNameg);
+		BufferedWriter bwBRCg = new BufferedWriter(writerg);
 
 		if (geneModels.isEmpty()) {
 			LOGGER.warn("no gene models to write to file");
 			return;
 		}
+
 		String locusPrefix = config.get(ConfigurationParameters.Locustag);
 		boolean writeLocus = !NullUtil.isNullOrEmpty(locusPrefix);
 		String genomeID = geneModels.get(0).getAlignment().getVirusGenome().getId();
 		long seqlength = geneModels.get(0).getAlignment().getVirusGenome().getSequence().getLength();
 		bw.write(">Features " + genomeID + "\n");
+		bwBRCg.write(">Features " + genomeID + "\n");
 		String proteinID = "";
 		for (int i = 0; i < geneModels.size(); i++) {
 			Model model = geneModels.get(i);
@@ -198,17 +224,23 @@ public class GenerateVigorOutput {
 			int codon_start = firstExon.getFrame().getFrame();
 			if (!model.getAlignment().getViralProtein().getProteinID().equals(proteinID)) {
 				bw.write(getGeneCoordinatesString(model, geneModels));
+				bwBRCg.write(getGeneCoordinatesString(model, geneModels));
 				bw.write("\tgene\n");
+				bwBRCg.write("\tgene\n");
 				if (writeLocus) {
 					bw.write("\t\t\tlocus_tag\t"
 							+ VigorUtils.nameToLocus(model.getGeneSymbol(), locusPrefix, model.isPseudogene()) + "\n");
+					bwBRCg.write("\t\t\tlocus_tag\t"
+							+ VigorUtils.nameToLocus(model.getGeneSymbol(), locusPrefix, model.isPseudogene()) + "\n");
 				}
 				bw.write("\t\t\tgene\t" + model.getGeneSymbol() + "\n");
+				bwBRCg.write("\t\t\tgene\t" + model.getGeneSymbol() + "\n");
 			}
 			proteinID = model.getAlignment().getViralProtein().getProteinID();
 			String geneSynonym = model.getAlignment().getViralProtein().getGeneSynonym();
 			if (geneSynonym != null && geneSynonym != "") {
 				bw.write("\t\t\tgene_syn\t" + geneSynonym + "\n");
+				bwBRCg.write("\t\t\tgene_syn\t" + geneSynonym + "\n");
 			}
 			for (int j = 0; j < exons.size(); j++) {
 				Exon exon = exons.get(j);
@@ -224,36 +256,50 @@ public class GenerateVigorOutput {
 				}
 				if (j == 0) {
 					bw.write(String.join("\t", Cstart, Cend, model.isPseudogene() ? "misc_feature" : "CDS"));
+					bwBRCg.write(String.join("\t", Cstart, Cend, model.isPseudogene() ? "misc_feature" : "CDS"));
 					bw.newLine();
+					bwBRCg.newLine();
 				} else {
 					bw.write(Cstart + "\t" + Cend + "\n");
+					bwBRCg.write(Cstart + "\t" + Cend + "\n");
 				}
 			}
 			bw.write("\t\t\tcodon_start\t" + codon_start + "\n");
+			bwBRCg.write("\t\t\tcodon_start\t" + codon_start + "\n");
 			if (model.getReplaceStopCodonRange() != null) {
 				long replaceStopBegin = VigorFunctionalUtils.getDirectionBasedCoordinate(
 						model.getReplaceStopCodonRange().getBegin(oneBased), seqlength, model.getDirection());
 				long replaceStopEnd = VigorFunctionalUtils.getDirectionBasedCoordinate(
 						model.getReplaceStopCodonRange().getEnd(oneBased), seqlength, model.getDirection());
 				bw.write("\t\t\ttransl_except\t" + String.format("(pos:%s..%s,aa:R)", replaceStopBegin, replaceStopEnd) + "\n");
+				bwBRCg.write(
+						"\t\t\ttransl_except\t" + String.format("(pos:%s..%s,aa:R)", replaceStopBegin, replaceStopEnd) + "\n");
 			}
 			bw.write("\t\t\tprotein_id\t" + model.getGeneID() + "\n");
+			bwBRCg.write("\t\t\tprotein_id\t" + model.getGeneID() + "\n");
 			if (writeLocus) {
 				bw.write("\t\t\tlocus_tag\t" + VigorUtils.nameToLocus(model.getGeneSymbol(), locusPrefix, model.isPseudogene())
 						+ "\n");
+				bwBRCg.write("\t\t\tlocus_tag\t"
+						+ VigorUtils.nameToLocus(model.getGeneSymbol(), locusPrefix, model.isPseudogene()) + "\n");
 			}
 			bw.write("\t\t\tgene\t" + model.getGeneSymbol() + "\n");
+			bwBRCg.write("\t\t\tgene\t" + model.getGeneSymbol() + "\n");
 			String product = model.getAlignment().getViralProtein().getProduct();
 			if (!NullUtil.isNullOrEmpty(product)) {
 				bw.write("\t\t\tproduct\t" + VigorUtils.putativeName(product, model.isPartial3p(), model.isPartial5p()) + "\n");
+				bwBRCg.write(
+						"\t\t\tproduct\t" + VigorUtils.putativeName(product, model.isPartial3p(), model.isPartial5p()) + "\n");
 			} else {
 				LOGGER.warn("Missing product for {}", genomeID);
 			}
 			if (riboSlippage.isHas_ribosomal_slippage()) {
 				bw.write("\t\t\tribosomal_slippage\n");
+				bwBRCg.write("\t\t\tribosomal_slippage\n");
 			}
 			if (rna_editing.isHas_RNA_editing()) {
 				bw.write("\t\t\texception\tRNA editing\n");
+				bwBRCg.write("\t\t\texception\tRNA editing\n");
 				notes = notes.append(rna_editing.getNote() + ";");
 			}
 			if (spliceSites != SpliceSite.DEFAULT_SPLICE_SITES) {
@@ -261,27 +307,34 @@ public class GenerateVigorOutput {
 			}
 			if (model.getInsertRNAEditingRange() != null) {
 				bw.write("\t\t\tnote\t" + notes + "\n");
+				bwBRCg.write("\t\t\tnote\t" + notes + "\n");
 				long insertBegin = VigorFunctionalUtils.getDirectionBasedCoordinate(
 						model.getInsertRNAEditingRange().getBegin(oneBased), seqlength, model.getDirection());
 				long insertEnd = VigorFunctionalUtils.getDirectionBasedCoordinate(
 						model.getInsertRNAEditingRange().getEnd(oneBased), seqlength, model.getDirection());
 				// TODO coordinate system?
 				bw.write(insertBegin + "\t" + insertEnd + "\t" + "misc_feature\n");
+				bwBRCg.write(insertBegin + "\t" + insertEnd + "\t" + "misc_feature\n");
 				NucleotideSequence subSeq = model.getAlignment().getVirusGenome().getSequence()
 						.toBuilder(model.getInsertRNAEditingRange()).build();
 				bw.write("\t\t\tnote\tlocation of RNA editing (" + subSeq + "," + rna_editing.getInsertionString() + ") in "
+						+ model.getAlignment().getViralProtein().getProduct() + "\n");
+				bwBRCg.write("\t\t\tnote\tlocation of RNA editing (" + subSeq + "," + rna_editing.getInsertionString() + ") in "
 						+ model.getAlignment().getViralProtein().getProduct() + "\n");
 			}
 			if (modelNotes.size() > 0) {
 				String notesText = String.join(",", modelNotes);
 				bw.write("\t\t\tnote\t" + notesText + "\n");
+				bwBRCg.write("\t\t\tnote\t" + notesText + "\n");
 			}
 		}
 		for (Model model : geneModels) {
 			if (model.getMaturePeptides() != null && !model.getMaturePeptides().isEmpty()) {
 				bw.write(">Features " + model.getGeneID());
+				bwBRCg.write(">Features " + model.getGeneID());
 				long proteinLength = model.getAlignment().getViralProtein().getSequence().getLength();
 				bw.newLine();
+				bwBRCg.newLine();
 				String product;
 				for (MaturePeptideMatch match : model.getMaturePeptides()) {
 					long start = VigorFunctionalUtils.getDirectionBasedCoordinate(1, proteinLength, model.getDirection());
@@ -289,37 +342,55 @@ public class GenerateVigorOutput {
 							model.getDirection());
 					bw.write(formatMaturePeptideRange(model, match, Arrays.asList(match.getProteinRange()),
 							Range.CoordinateSystem.RESIDUE_BASED, "\t", start, end, false));
+					bwBRCg.write(formatMaturePeptideRange(model, match, Arrays.asList(match.getProteinRange()),
+							Range.CoordinateSystem.RESIDUE_BASED, "\t", start, end, false));
 					bw.write("\t");
+					bwBRCg.write("\t");
 					product = match.getReference().getProduct();
 					if (!NullUtil.isNullOrEmpty(product)) {
 						if (product.contains("signal")) {
 							// TODO pre-classify type
 							bw.write("sig_peptide");
+							bwBRCg.write("sig_peptide");
 						} else {
 							bw.write("mat_peptide");
+							bwBRCg.write("mat_peptide");
 							bw.newLine();
+							bwBRCg.newLine();
 							bw.write("\t\t\tproduct\t");
+							bwBRCg.write("\t\t\tproduct\t");
 							// TODO check that there aren't other factors here.
 							bw.write(VigorUtils.putativeName(product, match.isFuzzyEnd(), match.isFuzzyBegin()));
+							bwBRCg.write(VigorUtils.putativeName(product, match.isFuzzyEnd(), match.isFuzzyBegin()));
 						}
 					} else {
 						LOGGER.warn("Missing product for mature peptide {}", match.getReference().getProteinID());
 					}
 					bw.newLine();
+					bwBRCg.newLine();
 					String geneSymbol = model.getGeneSymbol();
 					if (!NullUtil.isNullOrEmpty(geneSymbol)) {
 						if (writeLocus) {
 							bw.write("\t\t\tlocus_tag\t");
+							bwBRCg.write("\t\t\tlocus_tag\t");
+							bw.write("\t\t\tlocus_tag\t");
+							bwBRCg.write("\t\t\tlocus_tag\t");
 							bw.write(VigorUtils.nameToLocus(geneSymbol, locusPrefix, model.isPseudogene()));
+							bwBRCg.write(VigorUtils.nameToLocus(geneSymbol, locusPrefix, model.isPseudogene()));
 							bw.newLine();
+							bwBRCg.newLine();
 						}
 						bw.write("\t\t\tgene\t");
+						bwBRCg.write("\t\t\tgene\t");
 						bw.write(geneSymbol);
+						bwBRCg.write(geneSymbol);
 						bw.newLine();
+						bwBRCg.newLine();
 					}
 				}
 			}
 		}
+		bwBRCg.close();
 	}
 
 	private String getGeneCoordinatesString(Model model, List<Model> geneModels) {
@@ -389,9 +460,15 @@ public class GenerateVigorOutput {
 
 	public void generateCDSReport(VigorConfiguration config, BufferedWriter bw, List<Model> geneModels) throws IOException {
 
-		String REGEX = ":";
-		String REGEX2 = "[.]";
-		String REPLACE = "_";
+		String FileNameBRCg = getBRCOutputFileName(config, geneModels);
+		String outputDir = config.get(ConfigurationParameters.OutputDirectory);
+		String FilePathBRCg = outputDir;
+		String FileNameg = FilePathBRCg + "/" + FileNameBRCg + ".cds";
+		Pattern p = Pattern.compile(REGEX);
+		Pattern p2 = Pattern.compile(REGEX2);
+
+		FileWriter writerg = new FileWriter(FileNameg);
+		BufferedWriter bwBRCg = new BufferedWriter(writerg);
 
 		for (Model model : geneModels) {
 
@@ -399,8 +476,6 @@ public class GenerateVigorOutput {
 			String GeneSymbol = refProtein.getGeneSymbol();
 
 			String GeneID = model.getGeneID();
-			Pattern p = Pattern.compile(REGEX);
-			Pattern p2 = Pattern.compile(REGEX2);
 
 			Matcher m = p.matcher(GeneID);
 			String GeneID_new = m.replaceAll(REPLACE);
@@ -408,8 +483,9 @@ public class GenerateVigorOutput {
 			m = p2.matcher(GeneID_new);
 			GeneID_new = m.replaceAll(REPLACE);
 
-			String FileNameBRC = GeneID_new;
-			String outputDir = config.get(ConfigurationParameters.OutputDirectory);
+			String FileNameBRC = GeneID_new.replaceAll("/", "_");
+			// String outputDir =
+			// config.get(ConfigurationParameters.OutputDirectory);
 
 			String FilePathBRC = outputDir;
 			String FileName = FilePathBRC + "/" + FileNameBRC + ".cds";
@@ -418,7 +494,9 @@ public class GenerateVigorOutput {
 			BufferedWriter bwBRC = new BufferedWriter(writer);
 			writeDefline(bwBRC, model);
 
+			writeDefline(bwBRCg, model);
 			writeDefline(bw, model);
+
 			NucleotideSequenceBuilder builder = new NucleotideSequenceBuilder();
 			NucleotideSequence virusGenome = model.getAlignment().getVirusGenome().getSequence();
 			long seqLength = virusGenome.getLength();
@@ -429,18 +507,26 @@ public class GenerateVigorOutput {
 			for (Range exonRange : translatedRanges) {
 				builder.append(virusGenome.toBuilder(exonRange).build());
 			}
+			writeSequence(bwBRCg, builder.build());
 			writeSequence(bwBRC, builder.build());
 			writeSequence(bw, builder.build());
 
 			bwBRC.close();
 		}
+		bwBRCg.close();
 	}
 
 	public void generatePEPReport(VigorConfiguration config, BufferedWriter bw, List<Model> geneModels) throws IOException {
 
-		String REGEX = ":";
-		String REGEX2 = "[.]";
-		String REPLACE = "_";
+		String FileNameBRCg = getBRCOutputFileName(config, geneModels);
+		String outputDir = config.get(ConfigurationParameters.OutputDirectory);
+		String FilePathBRCg = outputDir;
+		String FileNameg = FilePathBRCg + "/" + FileNameBRCg + ".pep";
+		Pattern p = Pattern.compile(REGEX);
+		Pattern p2 = Pattern.compile(REGEX2);
+
+		FileWriter writerg = new FileWriter(FileNameg);
+		BufferedWriter bwBRCg = new BufferedWriter(writerg);
 
 		StringBuilder defline;
 		long seqLength = geneModels.get(0).getAlignment().getVirusGenome().getSequence().getLength();
@@ -448,18 +534,16 @@ public class GenerateVigorOutput {
 
 			String GeneID = model.getGeneID();
 
-			Pattern p = Pattern.compile(REGEX);
-			Pattern p2 = Pattern.compile(REGEX2);
-
 			Matcher m = p.matcher(GeneID);
 			String GeneID_new = m.replaceAll(REPLACE);
 
 			m = p2.matcher(GeneID_new);
 			GeneID_new = m.replaceAll(REPLACE);
 
-			String FileNameBRC = GeneID_new;
+			String FileNameBRC = GeneID_new.replaceAll("/", "_");
 
-			String outputDir = config.get(ConfigurationParameters.OutputDirectory);
+			// String outputDir =
+			// config.get(ConfigurationParameters.OutputDirectory);
 
 			String FilePathBRC = outputDir;
 			String FileName = FilePathBRC + "/" + FileNameBRC + ".pep";
@@ -468,6 +552,9 @@ public class GenerateVigorOutput {
 			BufferedWriter bwBRC = new BufferedWriter(writer);
 			writeDefline(bwBRC, model);
 			writeSequence(bwBRC, model.getTranslatedSeq());
+
+			writeDefline(bwBRCg, model);
+			writeSequence(bwBRCg, model.getTranslatedSeq());
 
 			writeDefline(bw, model);
 			writeSequence(bw, model.getTranslatedSeq());
@@ -488,7 +575,7 @@ public class GenerateVigorOutput {
 				mi = p2.matcher(GeneIDi_new);
 				GeneIDi_new = mi.replaceAll(REPLACE);
 
-				String FileNameiBRC = GeneIDi_new;
+				String FileNameiBRC = GeneIDi_new.replaceAll("/", "_");
 
 				String FileNamei = FilePathBRC + "/" + FileNameiBRC + ".pep";
 
@@ -531,12 +618,17 @@ public class GenerateVigorOutput {
 				bw.newLine();
 				writeSequence(bw, match.getProtein().toBuilder().trim(match.getProteinRange()).build());
 
+				bwBRCg.write(defline.toString());
+				bwBRCg.newLine();
+				writeSequence(bwBRCg, match.getProtein().toBuilder().trim(match.getProteinRange()).build());
+
 				bwiBRC.write(defline.toString());
 				bwiBRC.newLine();
 				writeSequence(bwiBRC, match.getProtein().toBuilder().trim(match.getProteinRange()).build());
 				bwiBRC.close();
 			}
 		}
+		bwBRCg.close();
 	}
 
 	public static String formatMaturePeptideRange(Model model, MaturePeptideMatch match, List<Range> ranges,
@@ -567,4 +659,27 @@ public class GenerateVigorOutput {
 		}
 		return String.join(",", rangeStrings);
 	}
+
+	private String getBRCOutputFileName(VigorConfiguration config, List<Model> geneModels) {
+
+		Model modelg = geneModels.get(0);
+		String GeneIDg = modelg.getGeneID();
+
+		Pattern p = Pattern.compile(REGEX);
+		Pattern p2 = Pattern.compile(REGEX2);
+
+		Matcher mg = p2.matcher(GeneIDg);
+		GeneIDg = mg.replaceAll(REPLACE_G);
+
+		String[] Parts = GeneIDg.split("-");
+		String Part0 = Parts[0];
+
+		Matcher mgg = p.matcher(Part0);
+		GeneIDg = mgg.replaceAll(REPLACE);
+
+		String FileNameBRCg = GeneIDg.replaceAll("/", "_");
+
+		return FileNameBRCg;
+	}
+
 }
