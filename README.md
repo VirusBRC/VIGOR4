@@ -6,6 +6,7 @@ This project is funded by the National Institute Of Allergy And Infectious Disea
 
 ### VIGOR4 currently annotates the following viruses:
 * Influenza (A & B for human, avian, and swine, and C for human)
+* SARS-CoV-2
 * West Nile Virus
 * Zika Virus
 * Chikungunya Virus
